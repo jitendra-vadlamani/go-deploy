@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go-Deploy Sample App</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --bg: #0f172a;
+            --text: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .container {
+            padding: 2rem;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        p {
+            opacity: 0.8;
+            max-width: 400px;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--primary);
+            color: #064e3b;
+            border-radius: 9999px;
+            font-weight: bold;
+            font-size: 0.875rem;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Hello from Go-Deploy!</h1>
+        <p>This is a sample application packaged as a self-installing appliance using Go-Deploy.</p>
+        <div class="badge">Running as a Service</div>
+    </div>
+</body>
+
+</html>

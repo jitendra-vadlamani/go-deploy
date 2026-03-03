@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go-Deploy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --bg: #020617;
+            --card: rgba(15, 23, 42, 0.6);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.05);
+            --accent: #34d399;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #020617;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 40px 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            padding: 48px;
+            width: 100%;
+            max-width: 580px;
+            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+            animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.025em;
+            background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+        }
+
+        .progress-line-active {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: width 0.3s ease;
+            z-index: 1;
+            width: 0%;
+        }
+
+        .step-indicator {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #0f172a;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        .step-indicator.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+        }
+
+        .step-indicator.completed {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #064e3b;
+        }
+
+        /* Form Steps */
+        .step-content {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 14px 18px;
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(16, 185, 129, 0.05);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0 20px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .checkbox-item input {
+            width: auto;
+            accent-color: var(--primary);
+        }
+
+        .env-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .env-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .env-item {
+            flex: 1;
+        }
+
+        .env-row button {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: none;
+            border-radius: 10px;
+            width: 38px;
+            cursor: pointer;
+        }
+
+        /* Navigation Buttons */
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            gap: 16px;
+        }
+
+        .btn-nav {
+            flex: 1;
+            padding: 16px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-prev {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+        }
+
+        .btn-next {
+            background: var(--primary);
+            color: #064e3b;
+        }
+
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .btn-nav:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Review Summary */
+        .review-card {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 18px;
+            padding: 24px;
+            border: 1px solid var(--border);
+        }
+
+        .review-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+
+        .review-label {
+            color: var(--text-muted);
+        }
+
+        .review-value {
+            color: var(--text);
+            font-weight: 500;
+            text-align: right;
+        }
+
+        #status {
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 24px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid currentColor;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: none;
+            animation: rotation 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes rotation {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Go-Deploy</h1>
+        <p class="subtitle">Build and package your Go applications into installer-ready desktop distributions.</p>
+
+        <div class="progress-container">
+            <div class="progress-line"></div>
+            <div class="progress-line-active" id="progressLine"></div>
+            <div class="step-indicator active" id="ind-1">1</div>
+            <div class="step-indicator" id="ind-2">2</div>
+            <div class="step-indicator" id="ind-3">3</div>
+            <div class="step-indicator" id="ind-4">4</div>
+        </div>
+
+        <form id="buildForm">
+            <!-- Step 1: Project Info -->
+            <div class="step-content active" id="step-1">
+                <div class="form-group">
+                    <label>Source Directory</label>
+                    <div class="input-group">
+                        <input type="text" id="sourceDir" placeholder="/abs/path/to/go/project" required>
+                        <button type="button" class="btn-secondary" onclick="browseSource()">Browse</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Destination Directory</label>
+                    <div class="input-group">
+                        <input type="text" id="outputDir" placeholder="./builds">
+                        <button type="button" class="btn-secondary" onclick="browseOutput()">Browse</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Branding & Info -->
+            <div class="step-content" id="step-2">
+                <div class="form-group">
+                    <label>App Name</label>
+                    <input type="text" id="displayName" placeholder="e.g., My Awesome App">
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">Used as both the display
+                        name
+                        and service identifier.</p>
+                </div>
+                <div class="form-group">
+                    <label>Version</label>
+                    <input type="text" id="version" value="1.0.0">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="description"
+                        placeholder="A brief description of what this app does..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Browser URL (Optional)</label>
+                    <input type="text" id="browserURL" placeholder="http://localhost:8080">
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">Optional URL to open
+                        automatically
+                        when the app starts (e.g., http://localhost:8080).</p>
+                </div>
+            </div>
+
+            <!-- Step 3: Build & Distribution -->
+            <div class="step-content" id="step-3">
+                <div class="form-group">
+                    <label>Target OS</label>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-item"><input type="checkbox" name="os" value="darwin" checked>
+                            macOS</label>
+                        <label class="checkbox-item"><input type="checkbox" name="os" value="windows">
+                            Windows</label>
+                        <label class="checkbox-item"><input type="checkbox" name="os" value="linux">
+                            Linux</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Targets (Architecture)</label>
+                    <div class="checkbox-grid" id="archGrid">
+                        <label class="checkbox-item"><input type="checkbox" name="targets" value="amd64" checked>
+                            Intel/AMD (x64)</label>
+                        <label class="checkbox-item"><input type="checkbox" name="targets" value="arm64" checked>
+                            Apple/ARM (M1/M2)</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Build Environment Variables</label>
+                    <div id="envList" class="env-list"></div>
+                    <button type="button" class="btn-secondary" style="margin-top: 12px; width: 100%; padding: 12px;"
+                        onclick="addEnvRow()">+ Add Variable</button>
+                </div>
+            </div>
+
+            <!-- Step 4: Review & Build -->
+            <div class="step-content" id="step-4">
+                <div class="form-group">
+                    <label>Default Run Mode</label>
+                    <select id="defaultMode">
+                        <option value="service" selected>Service (Auto-Install)</option>
+                        <option value="standalone">Standalone (Run Once)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Release Formats</label>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-item"><input type="checkbox" name="formats" value="binary" checked> Raw
+                            Binary</label>
+                        <label class="checkbox-item"><input type="checkbox" name="formats" value="deb"> .deb
+                            (Linux)</label>
+                        <label class="checkbox-item"><input type="checkbox" name="formats" value="dmg"> .dmg
+                            (Mac)</label>
+                        <label class="checkbox-item"><input type="checkbox" name="formats" value="exe"> Setup .exe
+                            (Windows)</label>
+                        <label class="checkbox-item"><input type="checkbox" name="formats" value="zip"> .zip
+                            (Win/Universal)</label>
+                    </div>
+                </div>
+                <div class="review-card">
+                    <label style="margin-bottom: 16px;">Final Review</label>
+                    <div class="review-item">
+                        <span class="review-label">App Name:</span>
+                        <span class="review-value" id="rev-display">Auto-detected</span>
+                    </div>
+                    <div class="review-item">
+                        <span class="review-label">Version:</span>
+                        <span class="review-value" id="rev-version">-</span>
+                    </div>
+                    <div class="review-item">
+                        <span class="review-label">Target Build:</span>
+                        <span class="review-value" id="rev-target">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-buttons">
+                <button type="button" class="btn-nav btn-prev" id="btnPrev" style="display: none;"
+                    onclick="changeStep(-1)">Back</button>
+                <button type="button" class="btn-nav btn-next" id="btnNext" onclick="changeStep(1)">Next Step</button>
+                <button type="submit" class="btn-nav btn-next" id="btnSubmit" style="display: none;">
+                    <span id="btnText">Build Release</span>
+                    <div class="loader" id="loader"></div>
+                </button>
+            </div>
+        </form>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+
+        function updateReview() {
+            const display = document.getElementById('displayName').value || 'Auto-detected';
+            document.getElementById('rev-display').innerText = display;
+            document.getElementById('rev-version').innerText = document.getElementById('version').value || '-';
+
+            const osList = Array.from(document.querySelectorAll('input[name="os"]:checked')).map(cb => cb.value).join(', ');
+            const arches = Array.from(document.querySelectorAll('input[name="targets"]:checked')).map(cb => cb.value).join(', ');
+            document.getElementById('rev-target').innerText = `${osList || '-'} / ${arches || '-'}`;
+        }
+
+        function changeStep(dir) {
+            // Simple validation
+            if (dir > 0) {
+                const activeStep = document.getElementById(`step-${currentStep}`);
+                const inputs = activeStep.querySelectorAll('input[required]');
+                for (let input of inputs) {
+                    if (!input.value.trim()) {
+                        alert(`Please fill in: ${input.placeholder || input.id}`);
+                        return;
+                    }
+                }
+            }
+
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            document.getElementById(`ind-${currentStep}`).classList.remove('active');
+            if (dir > 0) document.getElementById(`ind-${currentStep}`).classList.add('completed');
+            else document.getElementById(`ind-${currentStep}`).classList.remove('completed');
+
+            currentStep += dir;
+
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+            document.getElementById(`ind-${currentStep}`).classList.add('active');
+
+            // Progress Bar
+            document.getElementById('progressLine').style.width = ((currentStep - 1) / 3 * 100) + '%';
+
+            // Buttons Visibility
+            document.getElementById('btnPrev').style.display = currentStep > 1 ? 'block' : 'none';
+            document.getElementById('btnNext').style.display = currentStep < 4 ? 'block' : 'none';
+            document.getElementById('btnSubmit').style.display = currentStep === 4 ? 'flex' : 'none';
+
+            if (currentStep === 4) updateReview();
+        }
+
+        async function browseSource() {
+            try {
+                const path = await window.selectFolder();
+                if (path) document.getElementById('sourceDir').value = path;
+            } catch (err) { console.error(err); }
+        }
+
+        async function browseOutput() {
+            try {
+                const path = await window.selectFolder();
+                if (path) document.getElementById('outputDir').value = path;
+            } catch (err) { console.error(err); }
+        }
+
+        function addEnvRow(key = "", val = "") {
+            const container = document.getElementById('envList');
+            const row = document.createElement('div');
+            row.className = 'env-row';
+            row.innerHTML = `
+                <input type="text" class="env-item" placeholder="Key" value="${key}">
+                <input type="text" class="env-item" placeholder="Value" value="${val}">
+                <button type="button" onclick="this.parentElement.remove()">×</button>
+            `;
+            container.appendChild(row);
+        }
+
+
+        addEnvRow(); // Initial row
+
+        document.getElementById('buildForm').onsubmit = async (e) => {
+            e.preventDefault();
+
+            const btnText = document.getElementById('btnText');
+            const loader = document.getElementById('loader');
+            const status = document.getElementById('status');
+            const submitBtn = document.getElementById('btnSubmit');
+
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            status.style.display = 'none';
+            submitBtn.disabled = true;
+
+            const envVars = {};
+            document.querySelectorAll('.env-row').forEach(row => {
+                const [k, v] = row.querySelectorAll('input');
+                if (k.value.trim()) envVars[k.value.trim()] = v.value.trim();
+            });
+
+            const selectedOS = Array.from(document.querySelectorAll('input[name="os"]:checked')).map(cb => cb.value);
+            const selectedArch = Array.from(document.querySelectorAll('input[name="targets"]:checked')).map(cb => cb.value);
+
+            const targets = [];
+            selectedOS.forEach(os => {
+                selectedArch.forEach(arch => {
+                    targets.push({ OS: os, Arch: arch });
+                });
+            });
+
+            if (targets.length === 0) {
+                alert("Please select at least one OS and architecture.");
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+                return;
+            }
+
+            const data = {
+                SourceDir: document.getElementById('sourceDir').value,
+                OutputDir: document.getElementById('outputDir').value,
+                BuildEnv: envVars,
+                Name: document.getElementById('displayName').value,
+                Description: document.getElementById('description').value,
+                Version: document.getElementById('version').value,
+                BrowserURL: document.getElementById('browserURL').value,
+                Targets: targets,
+                DefaultMode: document.getElementById('defaultMode').value,
+                Formats: Array.from(document.querySelectorAll('input[name="formats"]:checked')).map(cb => cb.value)
+            };
+
+            try {
+                const res = await fetch('/api/build', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const text = await res.text();
+                status.className = res.ok ? 'success' : 'error';
+
+                if (res.ok) {
+                    const formats = data.Formats.join(', ') || 'binary';
+                    status.innerHTML = `<strong>Build Successful!</strong><br>Generated ${data.Targets.length} targets in ${formats} format.<br><br><small>Location: ${data.OutputDir || './builds'}</small>`;
+                } else {
+                    status.innerText = text;
+                }
+                status.style.display = 'block';
+            } catch (err) {
+                status.className = 'error';
+                status.innerText = 'Network error occurred.';
+                status.style.display = 'block';
+            } finally {
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+
+</html>

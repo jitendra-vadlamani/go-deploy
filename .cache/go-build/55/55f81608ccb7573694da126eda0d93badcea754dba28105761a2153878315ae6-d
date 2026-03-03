@@ -1,0 +1,16 @@
+# test log
+getenv GOTMPDIR
+getenv TMPDIR
+stat /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirmissing_directory4151192502/001/missing
+open /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T
+getenv GOTMPDIR
+getenv TMPDIR
+stat /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirmissing_go.mod3654131402/001
+stat /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirmissing_go.mod3654131402/001/go.mod
+open /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T
+getenv GOTMPDIR
+getenv TMPDIR
+open /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirvalid_go_module_dir673212160/001/go.mod
+stat /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirvalid_go_module_dir673212160/001
+stat /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T/TestValidateSourceDirvalid_go_module_dir673212160/001/go.mod
+open /var/folders/vx/6n1yp8f94q910xs0n9r9wlt80000gn/T
