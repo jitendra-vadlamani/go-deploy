@@ -128,9 +128,8 @@ func Build(opts BuildOptions) error {
 	if opts.TargetOS == "" || opts.TargetArch == "" {
 		return fmt.Errorf("target os and arch are required")
 	}
-	if err := validatePackagingPrerequisites(opts.Formats, opts.TargetOS); err != nil {
-		return err
-	}
+	// We don't fail immediately on missing tools. We'll try to build the binary
+	// and only error out during the packaging phase for specific formats.
 
 	opts.Name = name
 
@@ -151,11 +150,34 @@ func Build(opts BuildOptions) error {
 	}
 	env = append(env, "GOOS="+opts.TargetOS)
 	env = append(env, "GOARCH="+opts.TargetArch)
+
+	// Intelligent CGO handling:
+	// 1. If target matches host, enable CGO (needed for things like systray).
+	// 2. On macOS, arm64 <-> amd64 can often work with CGO.
+	// 3. Otherwise, disable CGO unless explicitly set in BuildEnv.
+	cgoSet := false
+	for k := range opts.BuildEnv {
+		if k == "CGO_ENABLED" {
+			cgoSet = true
+			break
+		}
+	}
+	if !cgoSet {
+		if opts.TargetOS == runtime.GOOS && (opts.TargetArch == runtime.GOARCH || runtime.GOOS == "darwin") {
+			env = append(env, "CGO_ENABLED=1")
+		} else {
+			env = append(env, "CGO_ENABLED=0")
+		}
+	}
 	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to build source binary: %v\nOutput: %s", err, string(out))
+		outStr := string(out)
+		if strings.Contains(outStr, "undefined: nativeLoop") || strings.Contains(outStr, "undefined: registerSystray") {
+			return fmt.Errorf("build failed: CGO is required for dependencies like 'systray'. Cross-compiling CGO from %s to %s/%s requires a cross-compiler (like 'zig cc') which was not found", runtime.GOOS, opts.TargetOS, opts.TargetArch)
+		}
+		return fmt.Errorf("failed to build source binary: %v\nOutput: %s", err, outStr)
 	}
 
 	input, err := os.ReadFile(tempOutput)
@@ -219,7 +241,17 @@ func Build(opts BuildOptions) error {
 
 	cmd = exec.Command("go", "build", "-o", outputPath, "main.go")
 	cmd.Dir = buildDir
-	cmd.Env = append(os.Environ(), "GOOS="+opts.TargetOS, "GOARCH="+opts.TargetArch)
+
+	finalEnv := append(os.Environ(), "GOOS="+opts.TargetOS, "GOARCH="+opts.TargetArch)
+	// Apply the same CGO logic for the wrapper build
+	if !cgoSet {
+		if opts.TargetOS == runtime.GOOS && (opts.TargetArch == runtime.GOARCH || runtime.GOOS == "darwin") {
+			finalEnv = append(finalEnv, "CGO_ENABLED=1")
+		} else {
+			finalEnv = append(finalEnv, "CGO_ENABLED=0")
+		}
+	}
+	cmd.Env = finalEnv
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -228,38 +260,113 @@ func Build(opts BuildOptions) error {
 
 	fmt.Printf("Successfully built app binary at %s\n", outputPath)
 
+	var packErrors []string
 	for _, format := range opts.Formats {
+		var err error
 		switch format {
 		case "binary":
 			// Raw binary is already created as outputPath.
 		case "deb":
 			if opts.TargetOS == "linux" {
-				if err := packageDeb(opts, outputPath); err != nil {
-					return fmt.Errorf("deb packaging failed: %v", err)
-				}
+				err = packageDeb(opts, outputPath)
+			}
+		case "rpm":
+			if opts.TargetOS == "linux" {
+				err = packageRpm(opts, outputPath)
 			}
 		case "dmg":
 			if opts.TargetOS == "darwin" {
-				if err := packageDmg(opts, outputPath); err != nil {
-					return fmt.Errorf("dmg packaging failed: %v", err)
-				}
+				err = packageDmg(opts, outputPath)
 			}
 		case "zip":
-			if err := packageZip(opts, outputPath); err != nil {
-				return fmt.Errorf("zip packaging failed: %v", err)
-			}
+			err = packageZip(opts, outputPath)
 		case "exe":
 			if opts.TargetOS == "windows" {
-				if err := packageExeInstaller(opts, outputPath); err != nil {
-					return fmt.Errorf("exe installer packaging failed: %v", err)
-				}
+				err = packageExeInstaller(opts, outputPath)
 			}
 		default:
-			return fmt.Errorf("unsupported package format: %s", format)
+			err = fmt.Errorf("unsupported package format: %s", format)
+		}
+		if err != nil {
+			packErrors = append(packErrors, err.Error())
 		}
 	}
 
+	if len(packErrors) > 0 {
+		return fmt.Errorf("packaging results: %s", strings.Join(packErrors, "; "))
+	}
+
 	return nil
+}
+
+func packageRpm(opts BuildOptions, binaryPath string) error {
+	if _, err := exec.LookPath("rpmbuild"); err != nil {
+		return fmt.Errorf("rpmbuild not found in PATH")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "rpm_build")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, d := range []string{"BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS"} {
+		os.MkdirAll(filepath.Join(tmpDir, d), 0755)
+	}
+
+	packageName := sanitizeDebPackageName(opts.Name)
+	installName := sanitizeFileStem(opts.Name)
+	version := sanitizeVersion(opts.Version)
+	arch := opts.TargetArch
+	if arch == "amd64" {
+		arch = "x86_64"
+	}
+
+	installDir := filepath.Join(tmpDir, "BUILDROOT", fmt.Sprintf("%s-%s-1.%s", packageName, version, arch), "usr", "bin")
+	os.MkdirAll(installDir, 0755)
+	if err := copyFile(binaryPath, filepath.Join(installDir, installName), 0755); err != nil {
+		return err
+	}
+
+	specContent := fmt.Sprintf(`Name: %s
+Version: %s
+Release: 1
+Summary: %s
+License: MIT
+Group: Applications/System
+BuildRoot: %%{_tmppath}/%%{name}-%%{version}-%%{release}-root
+
+%%description
+%s
+
+%%install
+mkdir -p %%{buildroot}/usr/bin
+cp %s %%{buildroot}/usr/bin/%s
+
+%%files
+/usr/bin/%s
+
+%%changelog
+`, packageName, version, opts.Description, opts.Description, installName, installName, installName)
+
+	specPath := filepath.Join(tmpDir, "SPECS", packageName+".spec")
+	if err := os.WriteFile(specPath, []byte(specContent), 0644); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("rpmbuild", "-bb", "--define", "_topdir "+tmpDir, specPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("rpmbuild failed: %v\nOutput: %s", err, string(out))
+	}
+
+	rpmFilePattern := filepath.Join(tmpDir, "RPMS", arch, "*.rpm")
+	matches, _ := filepath.Glob(rpmFilePattern)
+	if len(matches) == 0 {
+		return fmt.Errorf("no rpm file generated")
+	}
+
+	finalPath := filepath.Join(opts.OutputDir, filepath.Base(matches[0]))
+	return copyFile(matches[0], finalPath, 0644)
 }
 
 func packageDeb(opts BuildOptions, binaryPath string) error {
@@ -646,6 +753,10 @@ func requiredToolsForPackaging(formats []string, targetOS string) []string {
 		case "exe":
 			if targetOS == "windows" {
 				needed["makensis"] = struct{}{}
+			}
+		case "rpm":
+			if targetOS == "linux" {
+				needed["rpmbuild"] = struct{}{}
 			}
 		}
 	}
