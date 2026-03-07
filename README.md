@@ -1,119 +1,84 @@
 # Go-Deploy
 
-Go-Deploy packages a Go app into a desktop-installable distribution with optional service mode.
+Go-Deploy packages a Go app into a desktop-installable distribution with optional service mode. It provides a visual builder for managing build configurations across multiple target platforms.
 
 It is designed for apps that should feel native after install:
-- macOS: drag `.app` to `/Applications` from `.dmg`
-- Ubuntu/Linux: install `.deb`
-- Windows: run setup `.exe`
+- **macOS**: drag `.app` to `/Applications` from `.dmg`
+- **Ubuntu/Linux**: install `.deb` or `.rpm`
+- **Windows**: run setup `.exe`
 
 ## What Go-Deploy Builds
 
-Go-Deploy takes a **Go source directory** and produces a wrapper executable that embeds your app binary.
+Go-Deploy takes a **Go source directory** and produces a lightweight wrapper executable that embeds your app binary. This wrapper handles:
+- **Auto-Installation**: Optional service mode for background operation.
+- **Runtime Persistence**: Built-in persistence for user preferences.
+- **Inter-Process Communication**: Graceful stopping and relaunching behavior.
 
 Supported output formats:
-- `binary`: raw wrapped executable
-- `dmg` (macOS targets)
-- `deb` (Linux targets)
-- `exe` installer (Windows targets, NSIS)
-- `zip`
+- `binary`: Raw wrapped executable
+- `dmg`: macOS installer
+- `deb`: Debian/Ubuntu package
+- `rpm`: Fedora/RHEL package
+- `exe`: Windows setup installer (NSIS)
+- `zip`: Portable compressed archive
 
 ## Runtime Behavior
 
-For generated apps:
+Generated applications support:
 
-- Two run modes:
-  - `standalone`: run app process directly
-  - `service`: install/start as OS service; if permission is unavailable from user launch, fallback to standalone
-- Browser behavior:
-  - opens configured `BrowserURL` on launch
-  - defaults to `http://localhost:8080` when no URL is provided
-  - if app is already running, re-launch opens browser again instead of starting another app instance
-- Control behavior:
-  - tray menu support for `Open`, `Stop`, `Quit Tray`
-  - CLI fallback: `<app> --stop`
+- **Two Run Modes**:
+  - `standalone`: Runs the app process directly in the foreground.
+  - `service`: Installs and starts as an OS service (auto-starts on boot).
+- **Browser Integration**:
+  - Launches the configured `BrowserURL` on startup.
+  - Defaults to `http://localhost:8080`.
+- **System Tray**:
+  - Desktop integration with `Open`, `Stop`, and `Quit` options.
+- **CLI Management**:
+  - `<app> --stop`: Signals the running instance to exit.
+  - `<app> --version`: Displays the application version.
 
 ## Prerequisites
 
 - Go `1.25+`
-- Webview dependencies for builder UI (for example `webkit2gtk` on Linux)
+- **WebView Dependencies**: Required for the builder GUI (e.g., `webkit2gtk` on Linux).
 
-Packaging tools by format:
-- macOS `.dmg`: `hdiutil`
-- Linux `.deb`: `dpkg-deb`
-- Windows setup `.exe`: `makensis` (NSIS)
-
-Tray/runtime notes:
-- Linux may require appindicator/GTK tray dependencies for systray support
+### Packaging Tools
+Ensure target-specific tools are in your `PATH`:
+- **macOS `.dmg`**: `hdiutil`
+- **Linux `.deb`**: `dpkg-deb`
+- **Linux `.rpm`**: `rpmbuild`
+- **Windows `.exe`**: `makensis` (NSIS)
 
 ## Quick Start
 
-### 1. Run builder
-
+### 1. Launch the Builder
 ```bash
-cd go-deploy
-go mod tidy
 go run main.go
 ```
+This opens the Go-Deploy GUI.
 
-### 2. Build release package
+### 2. Manage Projects
+- **Dashboard**: View and reload recent build configurations.
+- **Configuration**:
+    1. Select **Source Directory** (must contain `go.mod`).
+    2. Set **App Metadata** (Name, Version, Description).
+    3. Configure **Deliverables**: Select target OS/Arch combinations and formats.
+    4. Define **Environment Variables**: Add key-value pairs or load from a `.env` file.
+    5. Choose **Default Mode**: Standalone or Service.
 
-In the UI:
-1. Set **Source Directory** to your Go project folder (with `go.mod`)
-2. Set app metadata (Name, Version, Description)
-3. Choose targets (OS/arch)
-4. Choose default run mode (`standalone` or `service`)
-5. Choose formats (`dmg`/`deb`/`exe`/etc.)
-6. Build
-
-Output goes to `./builds` by default.
-
-## Install and Run
-
-### macOS (`.dmg`)
-1. Open DMG
-2. Drag app to `/Applications`
-3. Launch from Applications
-
-### Ubuntu/Linux (`.deb`)
-```bash
-sudo dpkg -i your-app_<version>_<arch>.deb
-```
-
-### Windows (`setup .exe`)
-1. Run installer `.exe`
-2. Launch from Start Menu/desktop shortcut
-
-## Stop the App
-
-- Tray: use `Stop`
-- CLI fallback:
-
-```bash
-/path/to/app --stop
-```
-
-## Production Checklist
-
-Before shipping publicly, complete these steps:
-
-1. Run `go mod tidy` to lock dependencies (`go.sum`) in the release branch.
-2. Validate install/run/stop flows on all target OSes for both modes (`standalone` and `service`).
-3. Sign release artifacts:
-   - macOS: codesign + notarization for `.app`/`.dmg`
-   - Windows: Authenticode signing for installers
-4. Verify service install behavior with and without elevated permissions.
-5. Add CI smoke tests for packaging outputs (`dmg`, `deb`, `exe`) and runtime relaunch behavior.
+### 3. Build
+Click **Build Release**. Output is generated in `./builds` (or your custom directory).
 
 ## Project Structure
 
-- `main.go`: builder desktop app entrypoint
-- `frontend/`: embedded UI
-- `internal/builder/`: wrapper generation + packaging
-- `pkg/wrapper/`: runtime behavior (run/service/browser/tray/stop)
+- `main.go`: Entrypoint for the WebView-based builder GUI.
+- `frontend/`: Vanilla JS/CSS UI for the builder.
+- `internal/builder/`: Modular engine for wrapper generation and packaging.
+- `internal/db/`: Persistent storage for build configurations (BadgerDB).
+- `pkg/wrapper/`: Runtime logic for the generated distribution (service management, tray, lifecycle).
 
 ## Sample App
 
-Use `examples/sample-app` to test full flow end-to-end.
+Use `examples/sample-app` to test the full end-to-end packaging flow.
 
-For browser-based tests, set `BrowserURL` to the sample app URL (for example `http://localhost:8080`).
