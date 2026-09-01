@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -19,8 +19,11 @@ jobs:
         with:
           go-version: "1.25"
 
-      # webview_go, systray, and sqweek/dialog are cgo bindings that need
-      # native GTK/WebKit headers to even compile on Linux.
+      # webview_go's vendored cgo directive hardcodes the `webkit2gtk-4.0`
+      # pkg-config name, which Ubuntu 24.04 ("ubuntu-latest") no longer
+      # registers even with libwebkit2gtk-4.1-dev installed. Ubuntu 22.04's
+      # 4.1 dev package still provides the webkit2gtk-4.0.pc alias, matching
+      # webview_go's own tested CI matrix.
       - name: Install Linux GUI toolkit dependencies
         if: runner.os == 'Linux'
         run: |
