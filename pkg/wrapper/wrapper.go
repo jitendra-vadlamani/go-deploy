@@ -505,11 +505,15 @@ func processCommandLine(pid int) (string, error) {
 }
 
 func defaultCommandHint(executablePath string) string {
-	base := strings.ToLower(filepath.Base(strings.TrimSpace(executablePath)))
+	trimmed := strings.TrimSpace(executablePath)
+	if trimmed == "" {
+		return "appliance_bin_"
+	}
+	base := strings.ToLower(filepath.Base(trimmed))
 	if strings.HasPrefix(base, "appliance_bin_") {
 		return "appliance_bin_"
 	}
-	if base == "" {
+	if base == "" || base == "." || base == string(filepath.Separator) {
 		return "appliance_bin_"
 	}
 	return base

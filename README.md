@@ -1,5 +1,7 @@
 # Go-Deploy
 
+[![CI](https://github.com/jitendra-vadlamani/go-deploy/actions/workflows/ci.yml/badge.svg)](https://github.com/jitendra-vadlamani/go-deploy/actions/workflows/ci.yml)
+
 Go-Deploy packages a Go app into a desktop-installable distribution with optional service mode. It provides a visual builder for managing build configurations across multiple target platforms.
 
 It is designed for apps that should feel native after install:
@@ -81,4 +83,9 @@ Click **Build Release**. Output is generated in `./builds` (or your custom direc
 ## Sample App
 
 Use `examples/sample-app` to test the full end-to-end packaging flow.
+
+## Known Limitations
+
+- **Unsigned packages**: Generated `.dmg` and `.exe` installers are not code-signed or notarized. macOS Gatekeeper and Windows SmartScreen will warn users on first run. Signing requires a paid Apple Developer / code-signing certificate and isn't wired in.
+- **No CGO cross-compilation**: Building for a target OS/arch that differs from the host (and isn't covered by macOS's universal toolchain) requires a CGO cross-compiler (e.g. `zig cc`) for dependencies like `systray`. Without one, cross builds fail with a clear error rather than silently producing a broken binary.
 

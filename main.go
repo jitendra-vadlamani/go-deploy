@@ -27,9 +27,14 @@ var frontendAssets embed.FS
 
 func main() {
 	// 0. Initialize DB
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("failed to resolve home directory: %v", err)
+	}
 	dbPath := filepath.Join(home, ".go-deploy", "data")
-	os.MkdirAll(dbPath, 0755)
+	if err := os.MkdirAll(dbPath, 0755); err != nil {
+		log.Fatalf("failed to create data directory %s: %v", dbPath, err)
+	}
 	if err := db.Init(dbPath); err != nil {
 		log.Fatal(err)
 	}
@@ -209,18 +214,42 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 	if outputDir == "" {
 		outputDir = "./builds"
 	}
-	os.MkdirAll(outputDir, 0755)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		http.Error(w, fmt.Sprintf("failed to create output directory: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	type BuildResult struct {
 		Target string `json:"target"`
 		Status string `json:"status"`
 		Error  string `json:"error,omitempty"`
 	}
+
+	// Stream progress as newline-delimited JSON so the UI can show which
+	// target is currently building instead of blocking silently until the
+	// entire (potentially multi-target, multi-format) batch finishes.
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	flusher, canFlush := w.(http.Flusher)
+	encoder := json.NewEncoder(w)
+	emit := func(event any) {
+		_ = encoder.Encode(event)
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+
 	var results []BuildResult
 	anySuccess := false
 
-	for _, t := range req.Targets {
+	for i, t := range req.Targets {
 		targetName := fmt.Sprintf("%s/%s", t.OS, t.Arch)
+		emit(map[string]any{
+			"type":   "progress",
+			"target": targetName,
+			"index":  i + 1,
+			"total":  len(req.Targets),
+		})
+
 		opts := builder.BuildOptions{
 			SourceDir:   req.SourceDir,
 			Name:        req.Name,
@@ -235,20 +264,15 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 			Formats:     req.Formats,
 		}
 
-		err = builder.Build(opts)
-		if err != nil {
-			results = append(results, BuildResult{
-				Target: targetName,
-				Status: "failed",
-				Error:  err.Error(),
-			})
+		var result BuildResult
+		if err := builder.Build(opts); err != nil {
+			result = BuildResult{Target: targetName, Status: "failed", Error: err.Error()}
 		} else {
-			results = append(results, BuildResult{
-				Target: targetName,
-				Status: "success",
-			})
+			result = BuildResult{Target: targetName, Status: "success"}
 			anySuccess = true
 		}
+		results = append(results, result)
+		emit(map[string]any{"type": "result", "result": result})
 	}
 
 	// Auto-save project on build attempt
@@ -264,28 +288,21 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 		Formats:     req.Formats,
 		UpdatedAt:   time.Now().Unix(),
 	}
-	db.SaveProject(p)
-
-	w.Header().Set("Content-Type", "application/json")
-
-	response := struct {
-		Success   bool          `json:"success"`
-		Message   string        `json:"message"`
-		Results   []BuildResult `json:"results"`
-		OutputDir string        `json:"outputDir"`
-	}{
-		Success:   anySuccess,
-		Results:   results,
-		OutputDir: outputDir,
+	if err := db.SaveProject(p); err != nil {
+		log.Printf("Warning: failed to save project %q: %v", p.ID, err)
 	}
 
+	message := "All builds failed"
 	if anySuccess {
 		absOutput, _ := filepath.Abs(outputDir)
-		response.Message = fmt.Sprintf("Built appliances in %s", absOutput)
-		json.NewEncoder(w).Encode(response)
-	} else {
-		response.Message = "All builds failed"
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
+		message = fmt.Sprintf("Built appliances in %s", absOutput)
 	}
+
+	emit(map[string]any{
+		"type":      "done",
+		"success":   anySuccess,
+		"message":   message,
+		"results":   results,
+		"outputDir": outputDir,
+	})
 }

@@ -926,6 +926,45 @@
             container.appendChild(actions);
         }
 
+        // Reads a newline-delimited JSON stream from /api/build, invoking
+        // onEvent for each "progress"/"result" line as it arrives, and
+        // returning the final "done" event (the build summary).
+        async function readBuildStream(resp, onEvent) {
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let done = null;
+
+            while (true) {
+                const { value, done: streamDone } = await reader.read();
+                if (streamDone) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                let newlineIndex;
+                while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
+                    const line = buffer.slice(0, newlineIndex).trim();
+                    buffer = buffer.slice(newlineIndex + 1);
+                    if (!line) continue;
+                    const evt = JSON.parse(line);
+                    if (evt.type === 'done') {
+                        done = evt;
+                    } else {
+                        onEvent(evt);
+                    }
+                }
+            }
+
+            if (buffer.trim()) {
+                const evt = JSON.parse(buffer.trim());
+                if (evt.type === 'done') done = evt;
+            }
+
+            if (!done) {
+                throw new Error('Build stream ended without a final result');
+            }
+            return done;
+        }
+
         async function submitBuild() {
             console.log("Submitting build...");
             const btn = document.getElementById('btnSubmit');
@@ -943,7 +982,11 @@
                     body: JSON.stringify(config)
                 });
 
-                const data = await resp.json();
+                const data = await readBuildStream(resp, (evt) => {
+                    if (evt.type === 'progress') {
+                        btn.innerText = `Building ${evt.target} (${evt.index}/${evt.total})...`;
+                    }
+                });
                 console.log("Response:", data);
                 showStatus(data);
             } catch (e) {

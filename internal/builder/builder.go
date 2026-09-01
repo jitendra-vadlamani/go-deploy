@@ -128,8 +128,9 @@ func Build(opts BuildOptions) error {
 	if opts.TargetOS == "" || opts.TargetArch == "" {
 		return fmt.Errorf("target os and arch are required")
 	}
-	// We don't fail immediately on missing tools. We'll try to build the binary
-	// and only error out during the packaging phase for specific formats.
+	if err := validatePackagingPrerequisites(opts.Formats, opts.TargetOS); err != nil {
+		return err
+	}
 
 	opts.Name = name
 
